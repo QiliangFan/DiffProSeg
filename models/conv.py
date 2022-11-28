@@ -36,6 +36,22 @@ def conv_block(
     return nn.Sequential(*layers)
 
 
+def downsample_layer(in_channel: int):
+    return nn.Sequential(
+        nn.AvgPool3d(kernel_size=2, stride=2),
+        nn.InstanceNorm3d(in_channel, affine=True, momentum=1),
+        nn.ELU(inplace=True)
+    )
+
+
+def upsample_layer(in_channel: int):
+    return nn.Sequential(
+        nn.Upsample(scale_factor=2),
+        nn.InstanceNorm3d(in_channel, affine=True, momentum=1),
+        nn.ELU(inplace=True)
+    )
+
+
 class ResGNet(nn.Module):
 
     def __init__(self, in_channel: int, out_channel: int, num_steps: int):
