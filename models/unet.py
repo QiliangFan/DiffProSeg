@@ -10,16 +10,13 @@ from .conv import ResGNet, downsample_layer, upsample_layer
 
 class UNet(nn.Module):
 
-    def __init__(self, num_steps: int, num_classes: int = 2):
+    def __init__(self, num_steps: int):
         super().__init__()
 
         cur_channel = 4
         expand = 4
         num_layer = 4
         self.num_layer = num_layer
-
-        # sample function momentum
-        sample_mom = 1
 
         self.down_layers = []
         self.up_layers = []
@@ -57,7 +54,7 @@ class UNet(nn.Module):
         )
 
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor):
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
         x: input data  (batch_size, channel, depth, width, height)
         t: time step  (batch_size,)
@@ -74,3 +71,22 @@ class UNet(nn.Module):
             x = self.up_layers[t](x, t)
         
         return x
+
+class CondImageUNet(UNet):
+    """
+    PyTorch version implementation of SegDiff
+    """
+
+    def __init__(self, num_steps: int):
+        super().__init__(num_steps)
+        
+        self.F = ResGNet(1, 1, num_steps=num_steps)
+        self.G = ResGNet(1, 1, num_steps=num_steps)
+
+
+    def forward(self, xt: torch.Tensor, image: torch.Tensor, t: torch.Tensor):
+        G = self.G(image)
+        F = self.F(xt)
+        xt = F + G
+        xt_minus_1 = super()(xt)
+        return xt_minus_1
