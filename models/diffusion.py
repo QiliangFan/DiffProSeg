@@ -2,9 +2,10 @@ from pytorch_lightning import LightningModule
 import torch
 from torch import nn
 
+
 class DiffusionModel(LightningModule):
 
-    def __init__(self, num_steps: int):
+    def __init__(self, epsilon_theta: nn.Module, num_steps: int):
         super().__init__()
 
         self.num_steps = 100
@@ -14,28 +15,67 @@ class DiffusionModel(LightningModule):
         self.alpha_bar = torch.cumprod(self.alpha, 0)
         self.one_minus_alpha_bar = (1 - self.alpha_bar).sqrt()
 
-    def forward(self, x: torch.Tensor):
-        pass
+        # the neural network (`epsilon_\theta`)
+        self.epsilon_theta = epsilon_theta
 
-    def diffusion_process(self, x: torch.Tensor):
-        """
-        Can be implemented with the inductive manner
-        """
-        pass
+        # Loss function: compute the difference
+        self.delta_loss = nn.SmoothL1Loss()
 
-    def reverse_process(self, x: torch.Tensor):
+    def forward(self, img: torch.Tensor, label: torch.Tensor):
+        """
+        Compute the loss
+        """
+        epsilon = torch.randn_like(img)
+        batch_size = img.shape[0]
+
+        # 注意，如果t是(N,), 那么alpha用此下标取出的元素也是(N,)
+        # 这样会导致系数无法与样本相乘, 因此需要扩展维度
+        # (N,) -> (N, 1, 1, 1, 1)
+        t = torch.randint(0, self.num_steps, size=(batch_size,))
+        alpha_bar_t = self.alpha_bar[t.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)]
+
+        x_t = torch.sqrt(alpha_bar_t) * label + torch.sqrt(1 - alpha_bar_t) * epsilon
+
+        generated_noise = self.epsilon_theta(x_t, img, t)
+
+        return self.delta_loss(epsilon - generated_noise)
+
+    @torch.no_grad()
+    def diffusion_process(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Can be implemented with the inductive manner (`q_{x_t}(\cdot)`)
+        """
+        z = torch.rand_like(x)
+        alpha_bar_t = self.alpha_bar[t]
+        xt = torch.sqrt(alpha_bar_t) * x + torch.sqrt(1 - alpha_bar_t) * z
+        return xt
+
+    @torch.no_grad()
+    def reverse_process(self, img: torch.Tensor):
         """
         The reverse process is only related to inference stage (withou contribution to training process)
         """
-        pass
+        x = torch.randn_like(img)
+        for t in reversed(range(self.num_steps)):
+            t = torch.tensor([t])
+            x = self.sample(img, x, t)
+        return x
 
-    def sample(self, x0: torch.Tensor, t: torch.Tensor):
+    @torch.no_grad()
+    def sample(self, img: torch.Tensor, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
         Single step of total reverse process (with multiple sample steps)
-
-        Params:
-        x0: (batch, ch=1, z, y, x)
-        t: (batch, )
+        Sample one image each time.
         """
-        pass
+        assert img.shape[0] == 1, f"In inference stage, the batch size should be 1, but got {img.shape[0]}"
+        z = torch.randn_like(img)
+
+        alpha_t = self.alpha[t]
+        alpha_bar_t = self.alpha_bar[t]
+        beta_t = 1 - alpha_t
+
+        epsilon_output = self.epsilon_theta(x, img, t)
+        # 尾部的最后一项还是参考的原始Diffusion Model的公式
+        x_t_minus_1 = 1 / torch.sqrt(alpha_t) * (x - beta_t/(torch.sqrt(1 - alpha_bar_t))*epsilon_output) + beta_t.sqrt() * z
+        return x_t_minus_1
     
