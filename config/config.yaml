@@ -1,3 +1,8 @@
 train:
   lr: 1e-3
   warm_up: 200
+  epochs: 25
+
+diffusion:
+  num_steps: 100
+

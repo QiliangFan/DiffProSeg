@@ -57,8 +57,8 @@ class DiffusionModel(LightningModule):
         using_native_amp = False,
         using_lbfgs = False
         ):
-        warm_up_step = self.config["train"]["warm_up"]
-        lr = self.config["train"]["lr"]
+        warm_up_step = self.config["warm_up"]
+        lr = self.config["lr"]
         if self.trainer.global_step < warm_up_step:
             lr_scale = min(1.0, float(self.trainer.global_step + 1) / warm_up_step)
             for pg in optimizer.param_groups:
