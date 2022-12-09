@@ -8,5 +8,5 @@ class SeedContext:
     def __enter__(self):
         seed_everything(self.seed)
 
-    def __exit__(self):
+    def __exit__(self, exec_type, exec_value, exec_traceback):
         reset_seed()

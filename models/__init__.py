@@ -1,2 +1,2 @@
 from .diffusion import DiffusionModel
-from .unet import UNet
+from .unet import CondImageUNet

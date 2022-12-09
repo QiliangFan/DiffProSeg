@@ -1,7 +1,7 @@
 
 import torch
 from torch import nn
-from typing import Union, Tuple
+
 
 class Identity(nn.Module):
     
@@ -21,7 +21,7 @@ def conv_block(
     kernel_size,
     stride,
     padding,
-    inplace=True,
+    inplace=False,
     norm=True,
     act=True
 ):
@@ -36,20 +36,32 @@ def conv_block(
     return nn.Sequential(*layers)
 
 
-def downsample_layer(in_channel: int):
-    return nn.Sequential(
+class DownSample(nn.Module):
+
+    def __init__(self, in_channel: int):
+        super().__init__()
+        self.map = nn.Sequential(
         nn.AvgPool3d(kernel_size=2, stride=2),
         nn.InstanceNorm3d(in_channel, affine=True, momentum=1),
-        nn.ELU(inplace=True)
+        nn.ELU()
     )
 
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        return self.map(x), t
 
-def upsample_layer(in_channel: int):
-    return nn.Sequential(
+
+class UPSample(nn.Module):
+
+    def __init__(self, in_channel: int):
+        super().__init__()
+        self.map = nn.Sequential(
         nn.Upsample(scale_factor=2),
         nn.InstanceNorm3d(in_channel, affine=True, momentum=1),
-        nn.ELU(inplace=True)
+        nn.ELU()
     )
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        return self.map(x), t
 
 
 class ResGNet(nn.Module):
@@ -80,7 +92,6 @@ class ResGNet(nn.Module):
         padding_style = [
             (k1 // 2, k2 // 2, k3 // 2) for k1, k2, k3 in self.kernel_style
         ]
-        inplace = True
 
         for i in range(len(self.kernel_style)):
             cor = len(self.kernel_style) - i - 1
@@ -102,7 +113,7 @@ class ResGNet(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.residuals = nn.ModuleList(residuals)
         
-        if self.raw_in_channel != out_channel:
+        if self.raw_in_channel != self.raw_out_channel:
             self.skip = conv_block(self.raw_in_channel, self.raw_out_channel, kernel_size=1, stride=1, padding=0)
         else:
             self.skip = None
@@ -141,4 +152,4 @@ class ResGNet(nn.Module):
         embedding: torch.Tensor = self.embedding(t)
         x = torch.add(x, embedding.unsqueeze_(2).unsqueeze_(2).unsqueeze_(2))
 
-        return x
+        return x, t

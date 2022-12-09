@@ -37,7 +37,7 @@ class DiffusionModel(LightningModule):
 
     def configure_optimizers(self):
         # Optimizer
-        optim = AdamW(self.epsilon_theta, lr=1e-3)
+        optim = AdamW(self.epsilon_theta.parameters(), lr=1e-3)
         lr_sche = lr_scheduler.CosineAnnealingLR(optim, T_max=5)
         return {
             "optimizer": optim,
@@ -69,7 +69,7 @@ class DiffusionModel(LightningModule):
         """
         Compute the loss
         """
-        epsilon = torch.randn_like(img)
+        epsilon = torch.randn_like(img, device=img.device)
         batch_size = img.shape[0]
 
         # 注意，如果t是(N,), 那么alpha用此下标取出的元素也是(N,)
@@ -82,7 +82,7 @@ class DiffusionModel(LightningModule):
 
         generated_noise = self.epsilon_theta(x_t, img, t)
 
-        return self.delta_loss(epsilon - generated_noise)
+        return self.delta_loss(generated_noise, epsilon)
 
     def training_step(self, batch, batch_idx: int):
         img, label = batch

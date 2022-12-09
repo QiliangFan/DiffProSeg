@@ -1,5 +1,5 @@
 train:
-  lr: 1e-3
+  lr: 0.001
   warm_up: 200
   epochs: 25
 
