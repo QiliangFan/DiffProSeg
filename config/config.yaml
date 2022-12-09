@@ -1,0 +1,3 @@
+train:
+  lr: 1e-3
+  warm_up: 200

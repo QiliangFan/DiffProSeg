@@ -1,12 +1,23 @@
 from pytorch_lightning import LightningModule
 import torch
 from torch import nn
+from torch.optim import AdamW
+from torch.optim import lr_scheduler
+from typing import Dict
+import json
 
+from metrics import Dice
 
 class DiffusionModel(LightningModule):
 
-    def __init__(self, epsilon_theta: nn.Module, num_steps: int):
+    def __init__(self, epsilon_theta: nn.Module, num_steps: int, configuration: Dict):
         super().__init__()
+
+        # configuration
+        print("================= Configuration ==================")
+        print(json.dumps(configuration, indent=4))
+        print("================= Configuration ==================")
+        self.config = configuration
 
         self.num_steps = 100
         betas = torch.linspace(-6, 6, num_steps)
@@ -20,6 +31,39 @@ class DiffusionModel(LightningModule):
 
         # Loss function: compute the difference
         self.delta_loss = nn.SmoothL1Loss()
+
+        # Metrics:
+        self.dice = Dice()
+
+    def configure_optimizers(self):
+        # Optimizer
+        optim = AdamW(self.epsilon_theta, lr=1e-3)
+        lr_sche = lr_scheduler.CosineAnnealingLR(optim, T_max=5)
+        return {
+            "optimizer": optim,
+            "lr_scheduler": {
+                "scheduler": lr_sche
+            }
+        } 
+
+    def optimizer_step(
+        self, 
+        epoch, 
+        epoch_idx: int,
+        optimizer,
+        optimizer_idx = 0,
+        optimizer_closure = None,
+        on_tpu = False,
+        using_native_amp = False,
+        using_lbfgs = False
+        ):
+        warm_up_step = self.config["train"]["warm_up"]
+        lr = self.config["train"]["lr"]
+        if self.trainer.global_step < warm_up_step:
+            lr_scale = min(1.0, float(self.trainer.global_step + 1) / warm_up_step)
+            for pg in optimizer.param_groups:
+                pg["lr"] = lr_scale * lr
+        optimizer.step(closure=optimizer_closure)
 
     def forward(self, img: torch.Tensor, label: torch.Tensor):
         """
@@ -39,6 +83,24 @@ class DiffusionModel(LightningModule):
         generated_noise = self.epsilon_theta(x_t, img, t)
 
         return self.delta_loss(epsilon - generated_noise)
+
+    def training_step(self, batch, batch_idx: int):
+        img, label = batch
+        loss = self(img, label)
+        self.log_dict({
+            "loss": loss.item()
+        }, prog_bar=True, on_step=True)
+        return loss
+
+    def test_step(self, batch, batch_idx: int):
+        img, label = batch
+        pred = self.reverse_process(img)
+        dice = self.dice(pred, label)
+        metrics = {
+            "Dice": dice.item()
+        }
+        self.log_dict(metrics, prog_bar=True, on_step=True)
+        return metrics
 
     @torch.no_grad()
     def diffusion_process(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
