@@ -120,6 +120,7 @@ class DiffusionModel(LightningModule):
         x = torch.randn_like(img, device=img.device)
         for t in reversed(range(self.num_steps)):
             t = torch.tensor([t])
+            t.to(x)
             x = self.sample(img, x, t)
         return x
 
