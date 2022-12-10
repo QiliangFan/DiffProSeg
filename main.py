@@ -34,13 +34,22 @@ def main():
                 gpus=1 if torch.cuda.device_count() > 0 else 0,
                 max_epochs=train_config["epochs"],
                 benchmark=True,
+                log_every_n_steps=20,
             )
 
             train_loop(trainer, diffusion_model, promise12_data)
             test_loop(trainer, diffusion_model, promise12_data)
 
 if __name__ == "__main__":
-    data_root = "/home/fanqiliang/data/processed_data/hist_32"
+    sr2 = "/home/fanqiliang/data/processed_data/hist_32"
+    sr1 = "/home/chengdaguo/fanqiliang/processed_data/hist_32"
+    if os.path.exists(sr1):
+        data_root = sr1
+    elif os.path.exists(sr2):
+        data_root = sr2
+    else:
+        raise ValueError()
+
     global_config = yaml.full_load(open(os.path.join("config", "config.yaml")))
 
     main()

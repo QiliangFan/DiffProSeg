@@ -35,6 +35,9 @@ class DiffusionModel(LightningModule):
         # Metrics:
         self.dice = Dice()
 
+        if torch.cuda.is_available():
+            self.move_device(torch.device("cuda:0"))
+
     def configure_optimizers(self):
         # Optimizer
         optim = AdamW(self.epsilon_theta.parameters(), lr=1e-3)
@@ -75,7 +78,7 @@ class DiffusionModel(LightningModule):
         # 注意，如果t是(N,), 那么alpha用此下标取出的元素也是(N,)
         # 这样会导致系数无法与样本相乘, 因此需要扩展维度
         # (N,) -> (N, 1, 1, 1, 1)
-        t = torch.randint(0, self.num_steps, size=(batch_size,))
+        t = torch.randint(0, self.num_steps, size=(batch_size,), device=img.device)
         alpha_bar_t = self.alpha_bar[t.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)]
 
         x_t = torch.sqrt(alpha_bar_t) * label + torch.sqrt(1 - alpha_bar_t) * epsilon
@@ -87,9 +90,6 @@ class DiffusionModel(LightningModule):
     def training_step(self, batch, batch_idx: int):
         img, label = batch
         loss = self(img, label)
-        self.log_dict({
-            "loss": loss.item()
-        }, prog_bar=True, on_step=True)
         return loss
 
     def test_step(self, batch, batch_idx: int):
@@ -107,7 +107,7 @@ class DiffusionModel(LightningModule):
         """
         Can be implemented with the inductive manner (`q_{x_t}(\cdot)`)
         """
-        z = torch.rand_like(x)
+        z = torch.rand_like(x, device=x.device)
         alpha_bar_t = self.alpha_bar[t]
         xt = torch.sqrt(alpha_bar_t) * x + torch.sqrt(1 - alpha_bar_t) * z
         return xt
@@ -117,7 +117,7 @@ class DiffusionModel(LightningModule):
         """
         The reverse process is only related to inference stage (withou contribution to training process)
         """
-        x = torch.randn_like(img)
+        x = torch.randn_like(img, device=img.device)
         for t in reversed(range(self.num_steps)):
             t = torch.tensor([t])
             x = self.sample(img, x, t)
@@ -130,7 +130,7 @@ class DiffusionModel(LightningModule):
         Sample one image each time.
         """
         assert img.shape[0] == 1, f"In inference stage, the batch size should be 1, but got {img.shape[0]}"
-        z = torch.randn_like(img)
+        z = torch.randn_like(img, img.device)
 
         alpha_t = self.alpha[t]
         alpha_bar_t = self.alpha_bar[t]
@@ -141,3 +141,8 @@ class DiffusionModel(LightningModule):
         x_t_minus_1 = 1 / torch.sqrt(alpha_t) * (x - beta_t/(torch.sqrt(1 - alpha_bar_t))*epsilon_output) + beta_t.sqrt() * z
         return x_t_minus_1
     
+    def move_device(self, device: torch.device):
+        self.betas = self.betas.to(device)
+        self.alpha = self.alpha.to(device)
+        self.alpha_bar = self.alpha_bar.to(device)
+        self.one_minus_alpha_bar = self.one_minus_alpha_bar.to(device)
