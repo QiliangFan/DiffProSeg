@@ -130,7 +130,7 @@ class DiffusionModel(LightningModule):
         Sample one image each time.
         """
         assert img.shape[0] == 1, f"In inference stage, the batch size should be 1, but got {img.shape[0]}"
-        z = torch.randn_like(img, img.device)
+        z = torch.randn_like(img, device=img.device)
 
         alpha_t = self.alpha[t]
         alpha_bar_t = self.alpha_bar[t]
