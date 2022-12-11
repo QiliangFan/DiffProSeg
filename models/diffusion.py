@@ -5,12 +5,16 @@ from torch.optim import AdamW
 from torch.optim import lr_scheduler
 from typing import Dict
 import json
+import os
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
+
 
 from metrics import Dice
 
 class DiffusionModel(LightningModule):
 
-    def __init__(self, epsilon_theta: nn.Module, num_steps: int, configuration: Dict):
+    def __init__(self, epsilon_theta: nn.Module, num_steps: int, fold_idx: int, configuration: Dict):
         super().__init__()
 
         # configuration
@@ -19,7 +23,8 @@ class DiffusionModel(LightningModule):
         print("================= Configuration ==================")
         self.config = configuration
 
-        self.num_steps = 100
+        self.num_steps = num_steps
+        self.fold_idx = fold_idx
         betas = torch.linspace(-6, 6, num_steps)
         self.betas = torch.sigmoid(betas) * (0.5e-2 - 1e-5) + 1e-5
         self.alpha = 1 - self.betas
@@ -95,6 +100,8 @@ class DiffusionModel(LightningModule):
     def test_step(self, batch, batch_idx: int):
         img, label = batch
         pred = self.reverse_process(img)
+        # plot the results
+        self.plot(pred, label, batch_idx)
         dice = self.dice(pred, label)
         metrics = {
             "Dice": dice.item()
@@ -119,9 +126,11 @@ class DiffusionModel(LightningModule):
         """
         x = torch.randn_like(img, device=img.device)
         for t in reversed(range(self.num_steps)):
-            t = torch.tensor([t])
-            t.to(x)
+            t = torch.tensor([t], dtype=torch.long)
+            t = t.to(x.device)
             x = self.sample(img, x, t)
+        # Normalize to [0, 1]
+        x = F.sigmoid(x)
         return x
 
     @torch.no_grad()
@@ -141,7 +150,27 @@ class DiffusionModel(LightningModule):
         # 尾部的最后一项还是参考的原始Diffusion Model的公式
         x_t_minus_1 = 1 / torch.sqrt(alpha_t) * (x - beta_t/(torch.sqrt(1 - alpha_bar_t))*epsilon_output) + beta_t.sqrt() * z
         return x_t_minus_1
-    
+
+    @torch.no_grad()
+    def plot(self, pred: torch.Tensor, gt: torch.Tensor, batch_idx: int):
+        assert pred.shape == gt.shape
+        assert pred.shape[0] == 1, f"Batch size should equal to 1, but got {pred.shape[0]}"
+        pred = pred.cpu().detach().squeeze().numpy()
+        gt = gt.cpu().detach().squeeze().numpy()
+        for i, (pred_slice, gt_slice) in enumerate(zip(pred, gt)):
+            fig, ax = plt.subplots(1, 2)
+            ax[0].set_title("Pred")
+            ax[0].imshow(pred_slice)
+            ax[0].axis("off")
+            ax[1].set_title("Label")
+            ax[1].imshow(gt_slice)
+            ax[1].axis("off")
+            output_dir = os.path.join("output", "segments", f"fold_{self.fold_idx}")
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            plt.savefig(os.path.join(output_dir, f"{batch_idx}_{i}.png"), bbox_inches="tight")
+            plt.close(fig)
+
     def move_device(self, device: torch.device):
         self.betas = self.betas.to(device)
         self.alpha = self.alpha.to(device)

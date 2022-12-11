@@ -43,7 +43,7 @@ class Promise12Dataset(LightningDataModule):
         return train_data
 
     def test_dataloader(self):
-        test_data = DataLoader(self.test_data, batch_size=1, shuffle=True, num_workers=4)
+        test_data = DataLoader(self.test_data, batch_size=1, shuffle=False, num_workers=4)
         return test_data
 
     # def val_dataloader(self, stage: str):

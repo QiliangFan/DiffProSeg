@@ -102,6 +102,8 @@ class UNet(nn.Module):
 
         self.bottom = BottomLayer(cur_channel, num_steps)
 
+        self.act = nn.Sigmoid()
+
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -118,7 +120,7 @@ class UNet(nn.Module):
         for i in range(self.num_layer):
             x = torch.cat([x, forward_features[i]], dim=1)
             x, t = self.up_layers[i](x, t)
-        
+        x = self.act(x)
         return x
 
 class CondImageUNet(UNet):
@@ -149,6 +151,6 @@ class CondImageUNet(UNet):
         for i in range(self.num_layer):
             x = torch.cat([x, forward_features[i]], dim=1)
             x, t = self.up_layers[i](x, t)
-
+        x = self.act(x)
         # x_t_minus_1
         return x
