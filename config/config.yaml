@@ -1,7 +1,7 @@
 train:
   lr: 0.001
   warm_up: 200
-  epochs: 25
+  epochs: 50
 
 diffusion:
   num_steps: 100

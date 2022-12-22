@@ -7,8 +7,6 @@ from typing import Dict
 import json
 import os
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
-
 
 from metrics import Dice
 
@@ -101,13 +99,27 @@ class DiffusionModel(LightningModule):
         img, label = batch
         pred = self.reverse_process(img)
         # plot the results
-        self.plot(pred, label, batch_idx)
+        if batch_idx == 0:
+            self.plot(pred, label, batch_idx)
         dice = self.dice(pred, label)
         metrics = {
             "Dice": dice.item()
         }
         self.log_dict(metrics, prog_bar=True, on_step=True)
         return metrics
+
+    def validation_step(self, batch, batch_idx: int):
+        # plot the results
+        if batch_idx == 0:
+            img, label = batch
+            pred = self.reverse_process(img)
+            dice = self.dice(pred, label)
+            metrics = {
+            "Val_dice": dice.item()
+            }
+            self.log_dict(metrics, prog_bar=True, on_step=True)
+            self.plot(pred, label, batch_idx)
+        return batch_idx
 
     @torch.no_grad()
     def diffusion_process(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
@@ -130,7 +142,7 @@ class DiffusionModel(LightningModule):
             t = t.to(x.device)
             x = self.sample(img, x, t)
         # Normalize to [0, 1]
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x
 
     @torch.no_grad()

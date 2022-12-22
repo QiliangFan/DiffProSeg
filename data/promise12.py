@@ -33,10 +33,8 @@ class Promise12Dataset(LightningDataModule):
 
     def setup(self, stage: str):
         print(f"Current Stage: {stage}")
-        if stage == "fit":
-            self.train_data = Promise12(self.train_imgs, self.train_labels)
-        else:
-            self.test_data = Promise12(self.test_imgs, self.test_labels)
+        self.train_data = Promise12(self.train_imgs, self.train_labels)
+        self.test_data = Promise12(self.test_imgs, self.test_labels)
 
     def train_dataloader(self):
         train_data = DataLoader(self.train_data, batch_size=1, shuffle=True, num_workers=4)
@@ -46,8 +44,12 @@ class Promise12Dataset(LightningDataModule):
         test_data = DataLoader(self.test_data, batch_size=1, shuffle=False, num_workers=4)
         return test_data
 
-    # def val_dataloader(self, stage: str):
-    #     pass
+    def val_dataloader(self):
+        """
+        Just for debug
+        """
+        val_data = DataLoader(self.test_data, batch_size=1, shuffle=False, num_workers=4)
+        return val_data
 
 class Promise12(Dataset):
 

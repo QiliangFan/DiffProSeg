@@ -31,7 +31,6 @@ def main():
 
     cli_config = CLIConfig()
 
-    
     for fold_idx in range(5):
         with SeedContext(108):
             promise12_data = Promise12Dataset(data_root, fold_idx)
@@ -46,6 +45,7 @@ def main():
                 max_epochs=train_config["epochs"],
                 benchmark=True,
                 log_every_n_steps=20,
+                val_check_interval=5,
             )
 
             if cli_config["train"]:
@@ -53,6 +53,8 @@ def main():
                 test_loop(trainer, diffusion_model, promise12_data)
             else:
                 test_loop(trainer, diffusion_model, promise12_data)
+            
+        exit(0)
 
 if __name__ == "__main__":
     sr2 = "/home/fanqiliang/data/processed_data/hist_32"
